@@ -2,7 +2,7 @@
 #include <fstream>
 #include <cmath>
 #include <ctime>
-#include "mingw.thread.h"
+#include <thread>
 #define M_PI 3.14159265358978 //Hello !
 #define ll long long
 #define ull unsigned long long
@@ -11,30 +11,49 @@
 using namespace std;
 
 int getEyesFromChunkseed(ull chunkseed);
+void calculateLUTs();
 void getBestNumberOfThreadsAndSpeed();
 void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize=1);
 void checkSeedsWithThreads(ull baseSeed,ull nbSeedsToCheck,int nbThreads=4);
 
+int sinLUT[1024];
+int cosLUT[1024];
+
 int main()
 {
-    checkSeedsWithThreads(50000000000,50000000000,4);
+    calculateLUTs();
+
+    //getBestNumberOfThreadsAndSpeed();
+    checkSeedsWithThreads(1,5,1);
+
     return 0;
+}
+
+void calculateLUTs(){
+    for (int i = 0 ; i< 1024 ; i++){
+        sinLUT[i] = round(sin((i* M_PI) / 512.0)*2048);
+        cosLUT[i] = round(cos((i* M_PI) / 512.0)*2048);
+    }
 }
 
 void getBestNumberOfThreadsAndSpeed()
 {
-    int minTime(1000000000),startTime,endTime,nbThreads(1);
+    int minTime(10000000000),nbThreads(1);
+    int elapsed;
+    timespec startTime,endTime;
     bool improved(true);
     while(improved)
     {
-        startTime=clock();
-        checkSeedsWithThreads(0,1000000,nbThreads);
-        endTime=clock();
-        if(endTime-startTime<minTime)
+        clock_gettime(CLOCK_MONOTONIC,&startTime);
+        checkSeedsWithThreads(0,10000000,nbThreads);
+        clock_gettime(CLOCK_MONOTONIC,&endTime);
+        elapsed = (endTime.tv_sec - startTime.tv_sec) * 1000;
+        elapsed += (endTime.tv_nsec - startTime.tv_nsec) / 1000000;
+        if(elapsed<minTime)
         {
-            minTime=endTime-startTime;
-            cout<<nbThreads<<" thread(s) : "<<minTime<<" milliseconds taken to check 1 million seeds, speed : "<<1000000000/minTime<<" seeds/second.\n";
+            cout<<nbThreads<<" thread(s) : "<<elapsed<<" milliseconds taken to check 10 million seeds, speed : "<<10000000000/elapsed<<" seeds/second.\n";
             nbThreads*=2;
+            minTime = elapsed;
         }
         else
         {
@@ -61,25 +80,27 @@ void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize)
 {
     ull seed,RNGseed,chunkseed;
     ll var8,var10;
-    int baseX,baseZ,chunkX,chunkZ,nbEyes,t(time(0));
-    double angle,dist;
+    int baseX,baseZ,chunkX,chunkZ,nbEyes,t(time(0)),angle;
+    double dist;
     for(seed=baseSeed; seed<baseSeed+nbSeedsToCheck; seed+=stepSize)
     {
         RNGseed=seed^25214903917;
         next(RNGseed);
         var8=(RNGseed>>16)<<32;
-        angle=(RNGseed/140737488355328.0)*M_PI;
+        angle=RNGseed/274877906944;
         next(RNGseed);
         var8+=(int)(RNGseed>>16);//Don't ask me why there is a conversion to int here, I don't know either.
         var8=var8/2*2+1;
         next(RNGseed);
         var10=(RNGseed>>16)<<32;
-        dist=40+(RNGseed/8796093022208.0);
+        dist=160+(RNGseed/2199023255552);
         next(RNGseed);
         var10+=(int)(RNGseed>>16);
         var10=var10/2*2+1;
-        baseX=round(cos(angle)*dist);
-        baseZ=round(sin(angle)*dist);
+        baseX=(cosLUT[angle] * dist) / 8192;
+        baseZ=(sinLUT[angle] * dist) / 8192;
+
+//        cout<<seed << ": " << baseX << ", " <<baseZ << endl;
         for(chunkX=min(baseX-6,baseX+6); chunkX<=max(baseX-6,baseX+6); chunkX++)
         {
             for(chunkZ=min(baseZ-6,baseZ+6); chunkZ<=max(baseZ-6,baseZ+6); chunkZ++)
@@ -88,16 +109,16 @@ void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize)
                 nbEyes=getEyesFromChunkseed(chunkseed);
                 if(nbEyes>=11)
                 {
-                    ofstream flow("log.txt",ios::app);
+           //         ofstream flow("log.txt",ios::app);
                     cout<<seed<<" "<<nbEyes<<" "<<chunkX<<" "<<chunkZ<<endl;
-                    flow<<seed<<" "<<nbEyes<<" "<<chunkX<<" "<<chunkZ<<endl;
+           //         flow<<seed<<" "<<nbEyes<<" "<<chunkX<<" "<<chunkZ<<endl;
                 }
             }
         }
-        if(seed%50000000==49999999)
-        {
-            cout<<seed+1<<" time : "<<time(0)-t<<endl;
-        }
+    //    if(seed%50000000==49999999)
+    //    {
+    //        cout<<seed+1<<" time : "<<time(0)-t<<endl;
+    //    }
     }
 }
 
