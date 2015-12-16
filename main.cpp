@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <string.h>
 #include <ctime>
 #include <thread>
 #define M_PI 3.14159265358978 //Hello !
@@ -12,21 +13,77 @@ using namespace std;
 
 int getEyesFromChunkseed(ull chunkseed);
 void calculateLUTs();
+void printUseage();
 void getBestNumberOfThreadsAndSpeed();
-void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize=1);
-void checkSeedsWithThreads(ull baseSeed,ull nbSeedsToCheck,int nbThreads=4);
+void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize=1, int minCount = 11);
+void checkSeedsWithThreads(ull baseSeed,ull nbSeedsToCheck,int nbThreads=4, int minCount = 11);
 
 int sinLUT[1024];
 int cosLUT[1024];
 
-int main()
+int main(int argc, char* argv[])
 {
+    if (argc <= 1){
+        printUseage();
+        return 1;
+    }
     calculateLUTs();
+    if (strcmp(argv[1], "-t")== 0 || strcmp( argv[1], "--getBestThreadCount") == 0){
+        getBestNumberOfThreadsAndSpeed();
+        return 0;
+    }
+    if (argc < 5){
+        printUseage();
+        return 1;
+    }
 
-    //getBestNumberOfThreadsAndSpeed();
-    checkSeedsWithThreads(1,5,1);
+    char* e;
+
+    ull seed = strtoll(argv[1], &e, 10);
+    if (strcmp(e,"")){
+        printUseage();
+        return 1;
+    }
+
+    ull seedCount = strtoll(argv[2], &e, 10);
+    if (strcmp(e,"")){
+        printUseage();
+        return 1;
+    }
+
+    int threadCount = strtol(argv[3], &e, 10);
+    if (strcmp(e,"")){
+        printUseage();
+        return 1;
+    }
+
+    int minCount = strtol(argv[4], &e, 10);
+    if (strcmp(e,"")){
+        printUseage();
+        return 1;
+    }
+
+
+    if (seed + seedCount > 281474976710656){
+        cout << "[WARNING] Protal-room Generation is the same for every 2^48 Seeds. You may only check seeds < 2^48" << endl;
+    }
+
+    if (threadCount > 16){
+        cerr << "[ERROR] You may only use up to 32 Threads" << endl;
+        return 1;
+    }
+
+    checkSeedsWithThreads(seed, seedCount, threadCount, minCount);
 
     return 0;
+}
+
+void printUseage(){
+        cerr << "Usage: seedFinder -t or seedFinder --getBestThreadCount" << endl
+             << "               Tests the Program with different amount of Threads." << endl
+             << "       seedFinder <startSeed> <seedCount> <threadCount> <min Count>" << endl
+             << "               Starts the SeedFinder." << endl
+             << "               If seedCount is 0 the Program will run infinitly until you interrupt it (Ctrl+C)" << endl;
 }
 
 void calculateLUTs(){
@@ -42,10 +99,10 @@ void getBestNumberOfThreadsAndSpeed()
     int elapsed;
     timespec startTime,endTime;
     bool improved(true);
-    while(improved)
+    while(improved && nbThreads <= 32)
     {
         clock_gettime(CLOCK_MONOTONIC,&startTime);
-        checkSeedsWithThreads(0,10000000,nbThreads);
+        checkSeedsWithThreads(0,10000000,nbThreads,13); // Do not find anything (there also is none with 11 in the first 10 million seeds but just to be sure)
         clock_gettime(CLOCK_MONOTONIC,&endTime);
         elapsed = (endTime.tv_sec - startTime.tv_sec) * 1000;
         elapsed += (endTime.tv_nsec - startTime.tv_nsec) / 1000000;
@@ -62,13 +119,13 @@ void getBestNumberOfThreadsAndSpeed()
     }
 }
 
-void checkSeedsWithThreads(ull baseSeed,ull nbSeedsToCheck,int nbThreads)
+void checkSeedsWithThreads(ull baseSeed,ull nbSeedsToCheck,int nbThreads, int minCount)
 {
     int iThread;
     thread myThreadArray[nbThreads];
     for(iThread=0; iThread<nbThreads; iThread++)
     {
-        myThreadArray[iThread]=thread(checkSeeds,baseSeed+iThread,nbSeedsToCheck,nbThreads);
+        myThreadArray[iThread]=thread(checkSeeds,baseSeed+iThread,nbSeedsToCheck,nbThreads, minCount);
     }
     for(iThread=0; iThread<nbThreads; iThread++)
     {
@@ -76,13 +133,13 @@ void checkSeedsWithThreads(ull baseSeed,ull nbSeedsToCheck,int nbThreads)
     }
 }
 
-void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize)
+void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize, int minCount)
 {
     ull seed,RNGseed,chunkseed;
     ll var8,var10;
     int baseX,baseZ,chunkX,chunkZ,nbEyes,t(time(0)),angle;
     double dist;
-    for(seed=baseSeed; seed<baseSeed+nbSeedsToCheck; seed+=stepSize)
+    for(seed=baseSeed; (nbSeedsToCheck == 0) || seed<baseSeed+nbSeedsToCheck; seed+=stepSize)
     {
         RNGseed=seed^25214903917;
         next(RNGseed);
@@ -100,25 +157,20 @@ void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize)
         baseX=(cosLUT[angle] * dist) / 8192;
         baseZ=(sinLUT[angle] * dist) / 8192;
 
-//        cout<<seed << ": " << baseX << ", " <<baseZ << endl;
-        for(chunkX=min(baseX-6,baseX+6); chunkX<=max(baseX-6,baseX+6); chunkX++)
+        for(chunkX=baseX-6; chunkX<=baseX+6; chunkX++)
         {
-            for(chunkZ=min(baseZ-6,baseZ+6); chunkZ<=max(baseZ-6,baseZ+6); chunkZ++)
+            for(chunkZ=baseZ-6; chunkZ<=baseZ+6; chunkZ++)
             {
                 chunkseed=(var8*chunkX+var10*chunkZ)^seed;
                 nbEyes=getEyesFromChunkseed(chunkseed);
-                if(nbEyes>=11)
+                if(nbEyes>=minCount)
                 {
-           //         ofstream flow("log.txt",ios::app);
+                    ofstream flow("log.txt",ios::app);
                     cout<<seed<<" "<<nbEyes<<" "<<chunkX<<" "<<chunkZ<<endl;
-           //         flow<<seed<<" "<<nbEyes<<" "<<chunkX<<" "<<chunkZ<<endl;
+                    flow<<seed<<" "<<nbEyes<<" "<<chunkX<<" "<<chunkZ<<endl;
                 }
             }
         }
-    //    if(seed%50000000==49999999)
-    //    {
-    //        cout<<seed+1<<" time : "<<time(0)-t<<endl;
-    //    }
     }
 }
 
