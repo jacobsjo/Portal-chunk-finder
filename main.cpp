@@ -11,7 +11,7 @@
 
 using namespace std;
 
-int getEyesFromChunkseed(ull chunkseed);
+int isFullProtalFromChunkseed(ull chunkseed);
 void calculateLUTs();
 void printUseage();
 void getBestNumberOfThreadsAndSpeed();
@@ -137,7 +137,7 @@ void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize, int minCount)
 {
     ull seed,RNGseed,chunkseed;
     ll var8,var10;
-    int baseX,baseZ,chunkX,chunkZ,nbEyes,t(time(0)),angle;
+    int baseX,baseZ,chunkX,chunkZ,angle;
     double dist;
     for(seed=baseSeed; (nbSeedsToCheck == 0) || seed<baseSeed+nbSeedsToCheck; seed+=stepSize)
     {
@@ -162,21 +162,20 @@ void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize, int minCount)
             for(chunkZ=baseZ-6; chunkZ<=baseZ+6; chunkZ++)
             {
                 chunkseed=(var8*chunkX+var10*chunkZ)^seed;
-                nbEyes=getEyesFromChunkseed(chunkseed);
-                if(nbEyes>=minCount)
+                if (isFullProtalFromChunkseed(chunkseed))
                 {
                     ofstream flow("log.txt",ios::app);
-                    cout<<seed<<" "<<nbEyes<<" "<<chunkX<<" "<<chunkZ<<endl;
-                    flow<<seed<<" "<<nbEyes<<" "<<chunkX<<" "<<chunkZ<<endl;
+                    cout<<seed<<" 12 "<<chunkX<<" "<<chunkZ<<endl;
+                    flow<<seed<<" 12 "<<chunkX<<" "<<chunkZ<<endl;
                 }
             }
         }
     }
 }
 
-int getEyesFromChunkseed(ull chunkseed)//This function is full of Azelef math magic
+int isFullProtalFromChunkseed(ull chunkseed)//This function is full of Azelef math magic
 {
-    int iEye,nbEyes(0);
+    int iEye;
     chunkseed=chunkseed^25214903917;//This is the equivalent of starting a new Java RNG
     chunkseed*=124279299069389;//This line and the one after it simulate 761 calls to next() (761 was determined by CrafterDark)
     chunkseed+=17284510777187;
@@ -186,16 +185,16 @@ int getEyesFromChunkseed(ull chunkseed)//This function is full of Azelef math ma
         next(chunkseed);
         if(chunkseed>253327479039590)
         {
-            nbEyes=2;
             for(iEye=2; iEye<12; iEye++) //This is the same as calling nextFloat() 10 times and comparing it to 0.9
             {
                 next(chunkseed);
-                if(chunkseed>253327479039590)
+                if(chunkseed<=253327479039590)
                 {
-                    nbEyes++;
+                    return 0;
                 }
             }
+            return 1;
         }
     }
-    return nbEyes;
+    return 0;
 }
