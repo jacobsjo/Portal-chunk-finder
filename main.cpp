@@ -144,17 +144,17 @@ void checkSeeds(ull baseSeed,ull nbSeedsToCheck,int stepSize, int minCount)
         RNGseed=seed^25214903917;
         next(RNGseed);
         var8=(RNGseed>>16)<<32;
-        angle=RNGseed/274877906944;
+        angle=RNGseed/274877906944; // angle = 1024 equals 360 degree
         next(RNGseed);
         var8+=(int)(RNGseed>>16);//Don't ask me why there is a conversion to int here, I don't know either.
         var8=var8/2*2+1;
         next(RNGseed);
         var10=(RNGseed>>16)<<32;
-        dist=160+(RNGseed/2199023255552);
+        dist=160+(RNGseed/2199023255552); // this is the distance multiplied by 4 for more accuracy (dist is a int)
         next(RNGseed);
         var10+=(int)(RNGseed>>16);
         var10=var10/2*2+1;
-        baseX=(cosLUT[angle] * dist) / 8192;
+        baseX=(cosLUT[angle] * dist) / 8192;  //8192 comes from distance being multiplied by 4 and the LUT being multiplied by 2048.
         baseZ=(sinLUT[angle] * dist) / 8192;
 
         for(chunkX=baseX-6; chunkX<=baseX+6; chunkX++)
@@ -180,21 +180,15 @@ int isFullProtalFromChunkseed(ull chunkseed)//This function is full of Azelef ma
     chunkseed*=124279299069389;//This line and the one after it simulate 761 calls to next() (761 was determined by CrafterDark)
     chunkseed+=17284510777187;
     chunkseed%=281474976710656;
-    if(chunkseed>253327479039590)
+    for(iEye=0; iEye<11; iEye++) //This is the same as calling nextFloat() 10 times and comparing it to 0.9
     {
-        next(chunkseed);
-        if(chunkseed>253327479039590)
+        if(chunkseed<=253327479039590)
         {
-            for(iEye=2; iEye<12; iEye++) //This is the same as calling nextFloat() 10 times and comparing it to 0.9
-            {
-                next(chunkseed);
-                if(chunkseed<=253327479039590)
-                {
-                    return 0;
-                }
-            }
-            return 1;
+            return 0;
         }
+        next(chunkseed);
     }
+    return (chunkseed>253327479039590);
+
     return 0;
 }
